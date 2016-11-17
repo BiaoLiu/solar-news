@@ -73,8 +73,3 @@ def parser_article(article_id):
                                                                   'content': str(div),
                                                                   'createtime': createtime
                                                                   })
-
-
-if __name__ == '__main__':
-    paser_article_list('太阳能', 1)
-    print('ok')

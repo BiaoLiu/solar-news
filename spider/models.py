@@ -5,18 +5,21 @@ ARTICLE_URL = 'http://wallstreetcn.com/node/{0}'
 
 # Create your models here.
 
-class BaseModel(models.Model):
+# class BaseModel(models.Model):
+#     id = models.IntegerField(primary_key=True)
+#     createtime = models.DateTimeField()
+#     updatetime = models.DateTimeField(auto_now=True)
+#
+#     class Meta:
+#         abstract = True
+
+
+class Article(models.Model):
     id = models.IntegerField(primary_key=True)
-    createtime = models.DateTimeField(auto_now_add=True)
-    updatetime = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        abstract = True
-
-
-class Article(BaseModel):
-    title = models.CharField(max_length=100, null=True)
+    title = models.CharField(max_length=500, null=True)
     content = models.TextField(null=True)
+    createtime = models.DateTimeField()
+    updatetime = models.DateTimeField(auto_now=True)
 
     # songs = db.ListField(db.ReferenceField('Song'))
 
@@ -28,7 +31,10 @@ class Article(BaseModel):
         return ARTICLE_URL.format(self.id)
 
 
-class Process(BaseModel):
+class Process(models.Model):
+    id = models.IntegerField(primary_key=True)
+    createtime = models.DateTimeField(auto_now_add=True)
+    updatetime = models.DateTimeField(auto_now=True)
     status = models.IntegerField(default=0)
 
     @property
