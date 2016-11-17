@@ -1,0 +1,6 @@
+beautifulsoup4==4.5.1
+Django==1.9.6
+fake-useragent==0.1.2
+lxml==3.6.4
+PyMySQL==0.7.9
+requests==2.12.1
