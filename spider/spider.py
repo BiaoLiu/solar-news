@@ -1,19 +1,33 @@
 # coding: utf-8
+from django.utils import timezone
+import re
 from datetime import datetime
 import time
-from queue import Queue
-
-from spider.models import Article
-from spider.utils import get_tree, get_html, get
-import re
-import threading
+from dateutil import tz
+from bs4 import BeautifulSoup
+from spider.models import Article, Process
+from spider.utils import get_tree, get
 
 ARTICLE_LIST_URL = 'http://wallstreetcn.com/search?q={0}&page={1}'
-
 ARTICLE_URL = 'http://wallstreetcn.com/node/{0}'
 
-article_queue = Queue()
-html_queue = Queue()
+
+def parser_page(keyword, total_page=1):
+    print('Starting fetch article:{0} total page:{1}'.format(keyword, total_page))
+    start = time.time()
+
+    for i in range(total_page):
+        print('{0}资讯 第{1}页'.format(keyword, str(i + 1)))
+        article_ids = paser_article_list(keyword, i + 1)
+
+        for id in article_ids:
+            parser_article(id, keyword)
+
+    unprocess = Process.objects.filter(status=Process.PENDING)
+    for p in unprocess:
+        parser_article(p.id)
+
+    print('Finished fetch article  Cost: {}'.format(time.time() - start))
 
 
 def paser_article_list(keyword, page):
@@ -21,98 +35,67 @@ def paser_article_list(keyword, page):
     tree = get_tree(url)
 
     articles = tree.xpath('//div[@class="post"]/a[@class="post__image"]/@href')
+    pattern = re.compile('\S*?(?P<id>\d+)')
 
-    pattern = re.compile('\w*?(?P<id>\d+)')
-
+    article_ids = []
     for i in articles:
         m = pattern.match(i)
         id = m.group('id')
+        article_ids.append(id)
 
-        article_queue.put(id)
-        print(id)
-        # print(i.attrib.get('href'))
-
-    parser_article(id)
-
-    article_queue.qsize()
-    article_queue.get()
+    return article_ids
 
 
-# def paser_article(article_id):
-#     url = ARTICLE_URL.format(article_id)
-#     tree = get_tree(url)
-#
-#     title = tree.xpath('//div[@class="title-text"]/text()')[0]
-#     createtime = tree.xpath('//div[@class="title-meta-time"]/text()')[1].rstrip()
-#
-#     print(title)
-#     createtime = datetime.strptime(str(createtime), '%Y年%m月%d日 %H:%M:%S')
-#     print(createtime)
-#
-#     p = tree.xpath('//div[@class="page-article-content"]//p/node()')
-#
-#     for i in p:
-#         # print(i)
-#         # if issubclass(i)
-#         if isinstance(i,_Element):
-#             info = i.xpath('string(.)')
-#             print(info)
+def parser_article(article_id, keyword=None):
+    url = ARTICLE_URL.format(article_id)
 
-class Downloader(threading.Thread):
-    def run(self):
-        global article_queue
-        while True:
-            if article_queue.qsize() > 0:
-                article_id = article_queue.get()
-                print('抓取文章:' + article_id)
-                url = ARTICLE_URL.format(article_id)
-                result = get(url)
-                html_queue.put(result.text)
-            time.sleep(60 * 1)
+    process, is_created = Process.objects.get_or_create(id=article_id)
+    if process.is_success:
+        return
+
+    res = get(url)
+    is_success = save_article(res, keyword)
+
+    process.make_status(is_success)
 
 
-class ItemPipline(threading.Thread):
-    def run(self):
-        title = soup.find('div', class_='title-text')
-        print(title.text)
+def save_article(res, keyword):
+    m = re.match('\S+?(\d+)', res.url)
+    article_id = m.group(1)
+
+    soup = BeautifulSoup(res.text, 'lxml')
+    title = soup.find('div', class_='title-text')
+    author = soup.find('a', class_='author-name')
+
+    # soup.title.text='Page Not Found'
+
+    try:
+        if not author:
+            author = soup.find('div', class_='title-meta-source')
+
+        title = title.text.strip()
+        author = author.text.strip()
+
+        print(article_id)
+        print(title)
+        print(author)
 
         createtime = soup.find('div', class_='title-meta-time').contents[2].strip()
-
-        # for i in createtime.contents:
-        #     print(i)
-
         createtime = datetime.strptime(createtime, '%Y年%m月%d日 %H:%M:%S')
+        createtime=createtime.replace(tzinfo=tz.gettz('UTC'))
+        content = soup.find('div', class_='page-article-content')
 
-        div = soup.find('div', class_='page-article-content')
+        article = {
+            'title': title,
+            'author': author,
+            'content': str(content),
+            'tag': keyword,
+            'createtime': createtime
+        }
 
-        print(div)
+        article, is_created = Article.objects.get_or_create(id=int(article_id), defaults=article)
 
-        article, is_created = Article.objects.get_or_create(id=int(article_id),
-                                                            defaults={'title': title.text,
-                                                                      'content': str(div),
-                                                                      'createtime': createtime
-                                                                      })
-
-
-def parser_article(article_id):
-    url = ARTICLE_URL.format(article_id)
-    soup = get_html(url)
-    title = soup.find('div', class_='title-text')
-    print(title.text)
-
-    createtime = soup.find('div', class_='title-meta-time').contents[2].strip()
-
-    # for i in createtime.contents:
-    #     print(i)
-
-    createtime = datetime.strptime(createtime, '%Y年%m月%d日 %H:%M:%S')
-
-    div = soup.find('div', class_='page-article-content')
-
-    print(div)
-
-    article, is_created = Article.objects.get_or_create(id=int(article_id),
-                                                        defaults={'title': title.text,
-                                                                  'content': str(div),
-                                                                  'createtime': createtime
-                                                                  })
+        return True
+    except Exception as e:
+        print('fetch article {0} error：{1}'.format(article_id, e))
+        return False

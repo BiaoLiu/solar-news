@@ -1,9 +1,18 @@
+from datetime import datetime
+
 from django.http import HttpResponse
 from django.shortcuts import render
-from .spider import paser_article_list
-# Create your views here.
+from django.utils import timezone
 
-def test(request):
-    paser_article_list('太阳能', 1)
+# Create your views here.
+from spider.spider import parser_page
+
+
+def spider_wallstreet(request):
+    # for keyword in ['太阳能', '光伏', '晶硅', '多晶硅', '硅片']:
+    #     parser_page(keyword, 2)
+
+
+    parser_page('经济', 1)
 
     return HttpResponse('success')
