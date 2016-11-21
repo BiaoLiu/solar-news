@@ -16,7 +16,7 @@ def add2(x, y):
     return x + y
 
 
-@task(name='华尔街数据抓取')
+@task
 def spider_wall():
     keywords = ['太阳能', '光伏', '晶硅', '多晶硅', '硅片']
 
