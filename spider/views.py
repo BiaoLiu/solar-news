@@ -13,6 +13,6 @@ def spider_wallstreet(request):
     #     parser_page(keyword, 2)
 
 
-    parser_page('经济', 1)
+    parser_page('太阳能', 1)
 
     return HttpResponse('success')
